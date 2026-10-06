@@ -43,7 +43,7 @@ ui <- page_navbar(
   
   nav_menu("3. Analytics Engine",
     nav_panel("Metadata & Overview", summary_meta_ui("meta_mod")),
-    nav_panel("Data Preprocessing", cleaning_ui("clean_mod")),
+    nav_panel("Data Wrangling", cleaning_ui("clean_mod")),
     nav_panel("Descriptive & Visuals", descriptive_ui("desc_mod")),
     nav_panel("Normality Tests", normality_ui("norm_mod")), #
     nav_panel("Hypothesis Testing", hypothesis_ui("ht_mod")),
