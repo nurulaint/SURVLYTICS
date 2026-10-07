@@ -33,6 +33,7 @@ source("R/analytics/05_hypothesis_module.R")
 source("R/analytics/06_linear_regression_module.R")
 source("R/analytics/07_logistic_regression_module.R")
 source("R/analytics/08_summary_report_module.R")
+source("R/helper_module.R")
 
 ui <- page_navbar(
   title = "SURVLYTICS",
@@ -49,7 +50,8 @@ ui <- page_navbar(
     nav_panel("Hypothesis Testing", hypothesis_ui("ht_mod")),
     nav_panel("Linear Regression", linear_regression_ui("lm_mod")),
     nav_panel("Logistic Regression", logistic_regression_ui("glm_mod")), 
-    nav_panel("Final Summary & Workflow", summary_report_ui("sum_mod"))
+    nav_panel("Final Summary & Workflow", summary_report_ui("sum_mod")), 
+    nav_panel("Guide", helper_ui("helper_mod"))
   )
 )
 
@@ -74,6 +76,7 @@ server <- function(input, output, session) {
   linear_regression_server("lm_mod", app_state)
   logistic_regression_server("glm_mod", app_state)
   summary_report_server("sum_mod", app_state)
+  helper_server("helper_mod", app_state)
 }
 
 shinyApp(ui, server)
