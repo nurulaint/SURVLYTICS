@@ -5,25 +5,35 @@ descriptive_ui <- function(id) {
   navset_card_tab(
     # TAB 1: NUMERICAL SUMMARY TABLE
     nav_panel("Numerical Summary", 
-      card(
-        card_header(
-          class = "d-flex justify-content-between align-items-center",
-          "Summary Statistics for Continuous Variables",
-          downloadButton(ns("dl_num_stats"), "Download Numerical CSV", class = "btn-sm btn-outline-primary")
+      layout_sidebar(
+        sidebar = sidebar(
+          h4("Numerical Options"),
+          p("Export summary statistics for continuous variables."),
+          hr(),
+          actionButton(ns("save_num_report"), "Save to Report", icon = icon("check"), class = "btn-outline-success w-100 mb-2"),
+          downloadButton(ns("dl_num_stats"), "Download Numerical CSV", class = "btn-outline-primary w-100")
         ),
-        DTOutput(ns("num_summary_table"))
+        card(
+          card_header("Summary Statistics for Continuous Variables"),
+          DTOutput(ns("num_summary_table"))
+        )
       )
     ),
     
     # TAB 2: CATEGORICAL SUMMARY TABLE
     nav_panel("Frequency Tables", 
-      card(
-        card_header(
-          class = "d-flex justify-content-between align-items-center",
-          "Frequency Distributions for Categorical Variables",
-          downloadButton(ns("dl_cat_stats"), "Download Categorical CSV", class = "btn-sm btn-outline-primary")
+      layout_sidebar(
+        sidebar = sidebar(
+          h4("Categorical Options"),
+          p("Export frequency distributions for categorical variables."),
+          hr(),
+          actionButton(ns("save_cat_report"), "Save to Report", icon = icon("check"), class = "btn-outline-success w-100 mb-2"),
+          downloadButton(ns("dl_cat_stats"), "Download CSV", class = "btn-outline-primary w-100")
         ),
-        DTOutput(ns("cat_summary_table"))
+        card(
+          card_header("Frequency Distributions for Categorical Variables"),
+          DTOutput(ns("cat_summary_table"))
+        )
       )
     ),
     
@@ -31,6 +41,7 @@ descriptive_ui <- function(id) {
     nav_panel("Visualizations", 
       layout_sidebar(
         sidebar = sidebar(
+          h4("Plotting Controls"),
           # STEP 1: Analysis Type
           selectInput(ns("analysis_dim"), "1. Select Analysis Dimension:", 
                       choices = c("Univariate Analysis", "Bivariate / Multivariate Analysis")),
@@ -45,6 +56,7 @@ descriptive_ui <- function(id) {
           uiOutput(ns("dynamic_param_controls")),
           
           hr(),
+          actionButton(ns("save_plot_report"), "Save Plot to Report", icon = icon("check"), class = "btn-outline-success w-100 mb-2"),
           downloadButton(ns("dl_plot"), "Download High-Res Plot (PNG)", class = "btn-outline-primary w-100")
         ),
         card(
@@ -61,6 +73,7 @@ descriptive_server <- function(id, shared_state) {
     ns <- session$ns
     
     # 1. NUMERICAL SUMMARY LOGIC (Guaranteed Rendering)
+    # 1. NUMERICAL SUMMARY LOGIC (Fixed for Integer/Double compatibility)
     num_summary_df <- reactive({
       req(shared_state$data)
       df <- shared_state$data
@@ -70,13 +83,14 @@ descriptive_server <- function(id, shared_state) {
       
       data.frame(
         Variable = names(num_df),
-        Mean   = round(vapply(num_df, mean, numeric(1), na.rm = TRUE), 3),
-        SD     = round(vapply(num_df, sd, numeric(1), na.rm = TRUE), 3),
-        Median = round(vapply(num_df, median, numeric(1), na.rm = TRUE), 3),
-        IQR    = round(vapply(num_df, IQR, numeric(1), na.rm = TRUE), 3),
-        Min    = round(vapply(num_df, min, numeric(1), na.rm = TRUE), 3),
-        Max    = round(vapply(num_df, max, numeric(1), na.rm = TRUE), 3),
-        check.names = FALSE
+        Mean   = sapply(num_df, function(x) round(mean(x, na.rm = TRUE), 3)),
+        SD     = sapply(num_df, function(x) round(sd(x, na.rm = TRUE), 3)),
+        Median = sapply(num_df, function(x) round(median(x, na.rm = TRUE), 3)),
+        IQR    = sapply(num_df, function(x) round(IQR(x, na.rm = TRUE), 3)),
+        Min    = sapply(num_df, function(x) round(min(x, na.rm = TRUE), 3)),
+        Max    = sapply(num_df, function(x) round(max(x, na.rm = TRUE), 3)),
+        check.names = FALSE,
+        stringsAsFactors = FALSE
       )
     })
     
@@ -356,5 +370,29 @@ descriptive_server <- function(id, shared_state) {
         dev.off()
       }
     )
+
+    # 1. Save Numerical Summary
+    observeEvent(input$save_num_report, {
+      req(num_summary_df())
+      new_item <- list(type = "table", title = "Numerical Summary", data = num_summary_df())
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Numerical summary added to Word report!", type = "message")
+    })
+
+    # 2. Save Categorical Summary
+    observeEvent(input$save_cat_report, {
+      req(cat_summary_df())
+      new_item <- list(type = "table", title = "Categorical Summary", data = cat_summary_df())
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Categorical summary added to Word report!", type = "message")
+    })
+
+    # 3. Save Visualization
+    observeEvent(input$save_plot_report, {
+      req(plot_obj())
+      new_item <- list(type = "plot", title = paste("Visualization:", input$plot_type), data = plot_obj())
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Plot added to Word report!", type = "message")
+    })
   })
 }

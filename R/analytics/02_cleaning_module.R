@@ -7,18 +7,22 @@ cleaning_ui <- function(id) {
       h4("Data Wrangling Controls"),
       selectInput(ns("col_to_convert"), "Select Variable:", choices = NULL),
       selectInput(ns("target_type"), "Convert To Type:", choices = c("Numeric", "Factor/Categorical", "Character")),
-      actionButton(ns("apply_convert"), "Apply Type Conversion", class = "btn-primary"),
+      actionButton(ns("apply_convert"), "Apply Type Conversion", class = "btn-primary w-100"),
+      
       hr(),
+      
       h5("Handle Missing Data"),
       selectInput(ns("na_strategy"), "Strategy:", choices = c("Remove Rows with NA", "Impute Numeric with Mean", "Impute Numeric with Median")),
-      actionButton(ns("apply_na"), "Clean Missing Data", class = "btn-warning")
+      actionButton(ns("apply_na"), "Clean Missing Data", class = "btn-warning w-100"),
+      
+      hr(),
+      
+      # UI ID is "download_csv"
+      downloadButton(ns("download_csv"), "Download Cleaned CSV", class = "btn-outline-success w-100")
     ),
+    
     card(
-      card_header(
-        class = "d-flex justify-content-between align-items-center",
-        "Cleaned Data Overview",
-        downloadButton(ns("dl_clean_data"), "Download Cleaned CSV", class = "btn-sm btn-outline-success")
-      ),
+      card_header("Cleaned Data Overview"),
       verbatimTextOutput(ns("cleaning_log")),
       DTOutput(ns("cleaned_table"))
     )
@@ -111,8 +115,8 @@ cleaning_server <- function(id, shared_state) {
       datatable(shared_state$data, options = list(pageLength = 10, scrollX = TRUE))
     })
     
-    # Download Cleaned CSV
-    output$dl_clean_data <- downloadHandler(
+    # Download Cleaned CSV (Fixed ID mismatch: changed from dl_clean_data to download_csv)
+    output$download_csv <- downloadHandler(
       filename = function() { paste0("cleaned_data_", Sys.Date(), ".csv") },
       content = function(file) { write.csv(shared_state$data, file, row.names = FALSE) }
     )

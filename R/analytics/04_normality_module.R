@@ -8,24 +8,42 @@ normality_ui <- function(id) {
       selectInput(ns("num_var"), "1. Select Numeric Variable:", choices = NULL),
       selectInput(ns("group_var"), "2. Group by Categorical Variable (Optional):", choices = "None"),
       
-      uiOutput(ns("bin_control")),
-      
-      hr(),
-      downloadButton(ns("dl_norm_stats"), "Download Metrics CSV", class = "btn-outline-primary btn-sm")
+      uiOutput(ns("bin_control"))
     ),
     navset_card_tab(
       nav_panel("Statistical Tests & Metrics", 
         card(
-          card_header("Normality Summary Table"),
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            "Normality Summary Table",
+            div(
+              actionButton(ns("save_norm_table"), "Save to Report", icon = icon("check"), class = "btn-sm btn-outline-success me-2"),
+              downloadButton(ns("dl_norm_stats"), "Download Metrics CSV", class = "btn-sm btn-outline-primary")
+            )
+          ),
           DTOutput(ns("norm_table")),
           card_footer("Note: Shapiro-Wilk is recommended for N <= 5000. Lilliefors (K-S) test is used as a standard continuous alternative.")
         )
       ),
       nav_panel("Histogram & Distribution", 
-        plotOutput(ns("norm_hist"), height = "450px")
+        card(
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            "Histogram with Normal Curve",
+            actionButton(ns("save_norm_hist"), "Save Plot to Report", icon = icon("check"), class = "btn-sm btn-outline-success")
+          ),
+          plotOutput(ns("norm_hist"), height = "450px")
+        )
       ),
       nav_panel("Q-Q Plot", 
-        plotOutput(ns("norm_qq"), height = "450px")
+        card(
+          card_header(
+            class = "d-flex justify-content-between align-items-center",
+            "Normal Q-Q Plot",
+            actionButton(ns("save_norm_qq"), "Save Plot to Report", icon = icon("check"), class = "btn-sm btn-outline-success")
+          ),
+          plotOutput(ns("norm_qq"), height = "450px")
+        )
       )
     )
   )
@@ -148,8 +166,8 @@ normality_server <- function(id, shared_state) {
       content = function(file) { write.csv(norm_metrics_df(), file, row.names = FALSE) }
     )
 
-    # 3. Visualizations: Histogram with Fitted Normal Curve
-    output$norm_hist <- renderPlot({
+    # 3. Visualizations: Reactive plot objects (allows saving & rendering)
+    hist_plot_obj <- reactive({
       req(input$num_var, shared_state$data)
       df <- shared_state$data
       x <- input$num_var
@@ -175,9 +193,10 @@ normality_server <- function(id, shared_state) {
           labs(title = paste("Distribution & Normal Overlay for", x), y = "Density") +
           theme(legend.position = "top")
     })
+    
+    output$norm_hist <- renderPlot({ hist_plot_obj() })
 
-    # Visualizations: Q-Q Plot
-    output$norm_qq <- renderPlot({
+    qq_plot_obj <- reactive({
       req(input$num_var, shared_state$data)
       df <- shared_state$data
       x <- input$num_var
@@ -194,5 +213,42 @@ normality_server <- function(id, shared_state) {
       p + theme_minimal(base_size = 14) + 
           labs(title = paste("Normal Q-Q Plot for", x), x = "Theoretical Quantiles", y = "Sample Quantiles")
     })
+
+    output$norm_qq <- renderPlot({ qq_plot_obj() })
+
+    # 4. Save to Report Actions
+    observeEvent(input$save_norm_table, {
+      req(norm_metrics_df())
+      new_item <- list(
+        type = "table", 
+        title = paste("Normality Test:", input$num_var), 
+        data = norm_metrics_df()
+      )
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Normality table added to Word report!", type = "message")
+    })
+
+    observeEvent(input$save_norm_hist, {
+      req(hist_plot_obj())
+      new_item <- list(
+        type = "plot", 
+        title = paste("Histogram:", input$num_var), 
+        data = hist_plot_obj()
+      )
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Histogram added to Word report!", type = "message")
+    })
+
+    observeEvent(input$save_norm_qq, {
+      req(qq_plot_obj())
+      new_item <- list(
+        type = "plot", 
+        title = paste("Q-Q Plot:", input$num_var), 
+        data = qq_plot_obj()
+      )
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      showNotification("Q-Q Plot added to Word report!", type = "message")
+    })
+
   })
 }
