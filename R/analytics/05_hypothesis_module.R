@@ -19,21 +19,19 @@ hypothesis_ui <- function(id) {
       
       hr(),
       actionButton(ns("add_test"), "Execute & Add to Summary Table", class = "btn-primary w-100 mb-2"),
+      actionButton(ns("delete_selected"), "Delete Selected Test(s)", class = "btn-outline-danger w-100"),
       actionButton(ns("clear_tests"), "Clear All Accumulated Tests", class = "btn-outline-secondary w-100 mb-2"),
       downloadButton(ns("dl_pdf"), "Download Test Summary PDF", class = "btn-outline-danger w-100")
     ),
     card(
-      card_header(
-        class = "d-flex justify-content-between align-items-center",
-        "Accumulated Test Results Summary Table",
-        actionButton(ns("delete_selected_test"), "Delete Selected Test(s)", class = "btn-sm btn-outline-danger")
+      card_header("Accumulated Test Results Summary Table"),
+      # ... (the rest of your table output code)
       ),
       DTOutput(ns("ht_table")),
       hr(),
       h5("Latest Test Execution Details"),
       verbatimTextOutput(ns("ht_details"))
     )
-  )
 }
 
 hypothesis_server <- function(id, shared_state) {

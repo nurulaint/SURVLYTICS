@@ -265,7 +265,16 @@ summary_report_server <- function(id, shared_state) {
               doc <- officer::body_add_par(doc, item$title, style = "heading 3")
               
               if (item$type == "table") {
-                ft <- flextable::flextable(item$data)
+                table_data <- item$data
+                
+                # If this is a Logistic Regression table, drop the CI columns to match Linear Regression formatting
+                if (grepl("Logistic Regression", item$title, ignore.case = TRUE) || "Odds Ratio (OR)" %in% names(table_data)) {
+                  # Keep only the columns that matter (dropping the 2.5% CI and 97.5% CI)
+                  keep_cols <- intersect(names(table_data), c("Model Scope", "Target Level", "Term", "Estimate (Log-Odds)", "Odds Ratio (OR)", "Statistic", "p-value", "Significance"))
+                  table_data <- table_data[, keep_cols, drop = FALSE]
+                }
+                
+                ft <- flextable::flextable(table_data)
                 ft <- flextable::theme_vanilla(ft)
                 ft <- flextable::fontsize(ft, size = 9, part = "all")
                 ft <- flextable::set_table_properties(ft, layout = "autofit", width = 1)

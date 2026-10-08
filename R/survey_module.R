@@ -26,6 +26,7 @@ survey_builder_ui <- function(id) {
     card(
       card_header("Current Survey Schema"),
       DTOutput(ns("schema_table")),
+      actionButton(ns("delete_q"), "Delete Selected Question", class = "btn-danger mt-2"),
       verbatimTextOutput(ns("builder_status"))
     )
   )
@@ -75,7 +76,7 @@ survey_server <- function(id, shared_state) {
       }
       
       opts <- ""
-      if (input$q_type %in% c("Multiple Choice Questions", "Dropdown")) {
+      if (input$q_type %in% c("MCQ", "Dropdown")) {
         req(input$q_options)
         # Convert options to uppercase as well
         opts <- toupper(input$q_options)
@@ -101,7 +102,14 @@ survey_server <- function(id, shared_state) {
     output$schema_table <- renderDT({ 
       datatable(shared_state$schema, options = list(dom = 't')) 
     })
-    
+  
+    # to delete question
+    observeEvent(input$delete_q, {
+      req(input$schema_table_rows_selected) 
+      selected_rows <- input$schema_table_rows_selected
+      shared_state$schema <- shared_state$schema[-selected_rows, ]
+    })
+
     # --- 2. CLOUD DATABASE INITIALIZATION ---
     observeEvent(input$init_sheet, {
       req(input$sheet_url)

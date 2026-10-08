@@ -54,6 +54,7 @@ linear_regression_server <- function(id, shared_state) {
   }
 
     # 2. Store Fit Results (Separated into Simple and Multi)
+# 2. Store Fit Results (Separated into Simple and Multi)
     lm_results <- eventReactive(input$run_lm, {
       req(shared_state$data, input$target_y, input$predictors_x)
       df <- shared_state$data
@@ -61,7 +62,9 @@ linear_regression_server <- function(id, shared_state) {
       simple_results <- data.frame()
       
       # A. Always run Simple Linear Regression for EACH predictor individually
-      for (pred in input$predictors_x) {
+      for (i in seq_along(input$predictors_x)) {
+        pred <- input$predictors_x[i]
+        
         # Using backticks safely handles any spaces in column names
         f_ind <- as.formula(paste0("`", input$target_y, "` ~ `", pred, "`"))
         fit_ind <- lm(f_ind, data = df)
@@ -70,6 +73,9 @@ linear_regression_server <- function(id, shared_state) {
         df_ind <- as.data.frame(s_ind)
         df_ind$Term <- rownames(df_ind)
         df_ind <- format_lm_df(df_ind, paste("Individual:", pred))
+        
+        # ---> ADDED: Insert explicit Model ID column on the far left <---
+        df_ind <- cbind(`Model ID` = paste("Simple Model", i), df_ind)
         
         simple_results <- rbind(simple_results, df_ind)
       }
@@ -90,6 +96,9 @@ linear_regression_server <- function(id, shared_state) {
         df_multi <- as.data.frame(s_multi$coefficients)
         df_multi$Term <- rownames(df_multi)       
         multi_results <- format_lm_df(df_multi, "Combined Multiple Model")
+        
+        # ---> ADDED: Insert explicit Model ID for the Multiple Model <---
+        multi_results <- cbind(`Model ID` = "Multiple Model", multi_results)
         
         adj_r2 <- round(s_multi$adj.r.squared, 3)
         details_str <- paste0("Multiple R-Squared: ", round(s_multi$r.squared, 4), 

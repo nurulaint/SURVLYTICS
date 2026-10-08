@@ -1,5 +1,3 @@
-# R/analytics/07_normality_module.R
-
 normality_ui <- function(id) {
   ns <- NS(id)
   layout_sidebar(
@@ -7,22 +5,28 @@ normality_ui <- function(id) {
       h4("Normality Diagnostics"),
       selectInput(ns("num_var"), "1. Select Numeric Variable:", choices = NULL),
       selectInput(ns("group_var"), "2. Group by Categorical Variable (Optional):", choices = "None"),
+      selectInput(ns("selected_test"), "3. Select Normality Test:", 
+                  choices = c("Shapiro-Wilk", "Lilliefors (K-S)", "Anderson-Darling", "Standard K-S")),
       
-      uiOutput(ns("bin_control"))
+      uiOutput(ns("bin_control")),
+      hr(),
+      
+      # Accumulated Table Controls
+      # Accumulated Table Controls
+      actionButton(ns("execute_test"), "Execute & Add to Summary Table", class = "btn-primary w-100 mb-2"),
+      actionButton(ns("delete_selected"), "Delete Selected Test(s)", class = "btn-outline-danger w-100 mb-2"),
+      actionButton(ns("clear_tests"), "Clear All Accumulated Tests", class = "btn-light w-100 mb-2"),
+      downloadButton(ns("dl_norm_stats"), "Download Metrics CSV", class = "btn-outline-primary btn-sm w-100 mb-3"),
+      
+      # Save to Report Button
+      actionButton(ns("save_report"), "Save Table to Report", icon = icon("bookmark"), class = "btn-success w-100")
     ),
     navset_card_tab(
       nav_panel("Statistical Tests & Metrics", 
         card(
-          card_header(
-            class = "d-flex justify-content-between align-items-center",
-            "Normality Summary Table",
-            div(
-              actionButton(ns("save_norm_table"), "Save to Report", icon = icon("check"), class = "btn-sm btn-outline-success me-2"),
-              downloadButton(ns("dl_norm_stats"), "Download Metrics CSV", class = "btn-sm btn-outline-primary")
-            )
-          ),
+          card_header("Accumulated Test Results Summary Table"),
           DTOutput(ns("norm_table")),
-          card_footer("Note: Shapiro-Wilk is recommended for N <= 5000. Lilliefors (K-S) test is used as a standard continuous alternative.")
+          card_footer("Note: Select rows to delete them. Tests are accumulated as you execute them.")
         )
       ),
       nav_panel("Histogram & Distribution", 
@@ -30,7 +34,7 @@ normality_ui <- function(id) {
           card_header(
             class = "d-flex justify-content-between align-items-center",
             "Histogram with Normal Curve",
-            actionButton(ns("save_norm_hist"), "Save Plot to Report", icon = icon("check"), class = "btn-sm btn-outline-success")
+            downloadButton(ns("dl_hist"), "Download Plot (PNG)", class = "btn-sm btn-outline-primary")
           ),
           plotOutput(ns("norm_hist"), height = "450px")
         )
@@ -40,7 +44,7 @@ normality_ui <- function(id) {
           card_header(
             class = "d-flex justify-content-between align-items-center",
             "Normal Q-Q Plot",
-            actionButton(ns("save_norm_qq"), "Save Plot to Report", icon = icon("check"), class = "btn-sm btn-outline-success")
+            downloadButton(ns("dl_qq"), "Download Plot (PNG)", class = "btn-sm btn-outline-primary")
           ),
           plotOutput(ns("norm_qq"), height = "450px")
         )
@@ -56,6 +60,7 @@ normality_server <- function(id, shared_state) {
     # 1. Dynamic Dropdown Updates
     observe({
       req(shared_state$data)
+      req(ncol(shared_state$data) > 0)
       df <- shared_state$data
       
       num_cols <- names(df)[sapply(df, is.numeric)]
@@ -99,8 +104,11 @@ normality_server <- function(id, shared_state) {
       (m4 / s4) - 3  # Excess Kurtosis
     }
 
-    # 2. Compute Normality Statistics Table
-    norm_metrics_df <- reactive({
+    # Reactive storage for accumulated tests
+    accumulated_norm_results <- reactiveVal(data.frame())
+
+    # 2. Compute Normality Statistics
+    current_test_metrics <- reactive({
       req(input$num_var, shared_state$data)
       df <- shared_state$data
       var_name <- input$num_var
@@ -114,20 +122,29 @@ normality_server <- function(id, shared_state) {
           return(data.frame(
             Group = grp_label, N = n, Mean = mean(sub_x), SD = sd(sub_x),
             Skewness = NA, Kurtosis = NA, 
-            `Shapiro p-value` = NA, `Lilliefors p-value` = NA,
+            `p-value` = NA,
             Interpretation = "Insufficient Data (N < 3)", check.names = FALSE
           ))
         }
         
-        # Shapiro-Wilk (valid for 3 <= N <= 5000)
         sw_p <- if (n >= 3 && n <= 5000) round(shapiro.test(sub_x)$p.value, 4) else NA
+        lillie_p <- if (length(unique(sub_x)) > 1) round(nortest::lillie.test(sub_x)$p.value, 4) else NA
+        ad_p <- if (n >= 8) round(nortest::ad.test(sub_x)$p.value, 4) else NA
+        ks_p <- if (n >= 1) round(suppressWarnings(ks.test(sub_x, "pnorm", mean(sub_x), sd(sub_x))$p.value), 4) else NA
         
-        # Lilliefors (K-S) Test
-        ks_p <- if (length(unique(sub_x)) > 1) round(nortest::lillie.test(sub_x)$p.value, 4) else NA
+        eval_p <- switch(input$selected_test,
+                         "Shapiro-Wilk" = sw_p,
+                         "Lilliefors (K-S)" = lillie_p,
+                         "Anderson-Darling" = ad_p,
+                         "Standard K-S" = ks_p)
         
-        # Normality Verdict based on Shapiro (or Lilliefors if N > 5000)
-        eval_p <- if (!is.na(sw_p)) sw_p else ks_p
-        verdict <- if (!is.na(eval_p) && eval_p > 0.05) "Normal (p > 0.05)" else "Non-Normal (p <= 0.05)"
+        verdict <- if (!is.na(eval_p) && eval_p > 0.05) {
+          "Normal (p > 0.05)"
+        } else if (!is.na(eval_p)) {
+          "Non-Normal (p <= 0.05)"
+        } else {
+          "Test N/A (Insufficient N)"
+        }
         
         data.frame(
           Group = grp_label,
@@ -136,8 +153,7 @@ normality_server <- function(id, shared_state) {
           SD = round(sd(sub_x), 3),
           Skewness = round(calc_skewness(sub_x), 3),
           Kurtosis = round(calc_kurtosis(sub_x), 3),
-          `Shapiro p-value` = ifelse(is.na(sw_p), "N/A", sw_p),
-          `Lilliefors p-value` = ifelse(is.na(ks_p), "N/A", ks_p),
+          `p-value` = ifelse(is.na(eval_p), "N/A", eval_p),
           Interpretation = verdict,
           check.names = FALSE,
           stringsAsFactors = FALSE
@@ -153,20 +169,111 @@ normality_server <- function(id, shared_state) {
       }
     })
 
-    # Render Summary Table
-    output$norm_table <- renderDT({
-      df <- norm_metrics_df()
-      req(df)
-      datatable(df, rownames = FALSE, options = list(dom = 't', scrollX = TRUE))
+    # --- Execute & Accumulate ---
+    observeEvent(input$execute_test, {
+      tryCatch({
+        req(current_test_metrics())
+        new_test <- current_test_metrics()
+        
+        final_row <- data.frame(
+          Variable = input$num_var,
+          Group = new_test$Group,
+          N = new_test$N,
+          Mean = new_test$Mean,
+          SD = new_test$SD,
+          Skewness = new_test$Skewness,
+          Kurtosis = new_test$Kurtosis,
+          `Executed Test` = input$selected_test,
+          `p-value` = as.character(new_test$`p-value`), 
+          Interpretation = new_test$Interpretation,
+          check.names = FALSE,
+          stringsAsFactors = FALSE
+        )
+        
+        current_accumulated <- accumulated_norm_results()
+        if (nrow(current_accumulated) == 0) {
+          updated_df <- final_row
+        } else {
+          updated_df <- rbind(current_accumulated, final_row)
+        }
+        
+        accumulated_norm_results(updated_df)
+        
+        if (is.null(shared_state$final_models)) {
+          shared_state$final_models <- list()
+        }
+        shared_state$final_models$normality <- updated_df
+        
+        if (is.null(shared_state$audit_log)) {
+          shared_state$audit_log <- data.frame(Timestamp=character(), Module=character(), Action=character(), Details=character(), stringsAsFactors=FALSE)
+        }
+        log_entry <- data.frame(
+          Timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+          Module = "Normality Diagnostics",
+          Action = "Normality Test Executed",
+          Details = paste("Variable:", input$num_var, "| Test Selected:", input$selected_test),
+          stringsAsFactors = FALSE
+        )
+        shared_state$audit_log <- rbind(shared_state$audit_log, log_entry)
+        
+        showNotification("Test added to summary table!", type = "message")
+        
+      }, error = function(e) {
+        showNotification(paste("ERROR:", e$message), type = "error", duration = 15)
+        print(paste("ERROR IN EXECUTE:", e$message))
+      })
     })
 
-    # Download Handler
+    # --- Save Accumulated Table to Word Report ---
+    observeEvent(input$save_report, {
+      req(accumulated_norm_results())
+      df <- accumulated_norm_results()
+      
+      if(nrow(df) == 0) {
+         showNotification("Table is empty! Execute a test first.", type = "warning")
+         return()
+      }
+      
+      new_item <- list(
+        type = "table", 
+        title = "Accumulated Normality Diagnostics", 
+        data = df
+      )
+      shared_state$report_items <- append(shared_state$report_items, list(new_item))
+      
+      showNotification("Accumulated table successfully added to Word report!", type = "message")
+    })
+
+    # --- Delete Selected Rows ---
+    observeEvent(input$delete_selected, {
+      req(input$norm_table_rows_selected)
+      current_df <- accumulated_norm_results()
+      current_df <- current_df[-input$norm_table_rows_selected, , drop = FALSE]
+      accumulated_norm_results(current_df)
+      shared_state$final_models$normality <- current_df 
+    })
+
+    # --- Clear All Rows ---
+    observeEvent(input$clear_tests, {
+      accumulated_norm_results(data.frame())
+      shared_state$final_models$normality <- NULL 
+    })
+
+    # --- Render the Accumulated Table ---
+    output$norm_table <- renderDT({
+      df <- accumulated_norm_results()
+      req(nrow(df) > 0)
+      datatable(df, rownames = FALSE, selection = "multiple", 
+                options = list(dom = 't', scrollX = TRUE))
+    })
+
+    # --- Download Handler for CSV ---
     output$dl_norm_stats <- downloadHandler(
-      filename = function() { paste0("normality_analysis_", Sys.Date(), ".csv") },
-      content = function(file) { write.csv(norm_metrics_df(), file, row.names = FALSE) }
+      filename = function() { paste0("Accumulated_Normality_Tests_", Sys.Date(), ".csv") },
+      content = function(file) { write.csv(accumulated_norm_results(), file, row.names = FALSE) }
     )
 
-    # 3. Visualizations: Reactive plot objects (allows saving & rendering)
+    # 3. Visualizations: Reactive Histogram
     hist_plot_obj <- reactive({
       req(input$num_var, shared_state$data)
       df <- shared_state$data
@@ -193,9 +300,15 @@ normality_server <- function(id, shared_state) {
           labs(title = paste("Distribution & Normal Overlay for", x), y = "Density") +
           theme(legend.position = "top")
     })
-    
+
     output$norm_hist <- renderPlot({ hist_plot_obj() })
 
+    output$dl_hist <- downloadHandler(
+      filename = function() { paste0("Histogram_", input$num_var, "_", Sys.Date(), ".png") },
+      content = function(file) { ggsave(file, plot = hist_plot_obj(), width = 8, height = 5, bg = "white") }
+    )
+
+    # 4. Visualizations: Reactive Q-Q Plot
     qq_plot_obj <- reactive({
       req(input$num_var, shared_state$data)
       df <- shared_state$data
@@ -216,39 +329,9 @@ normality_server <- function(id, shared_state) {
 
     output$norm_qq <- renderPlot({ qq_plot_obj() })
 
-    # 4. Save to Report Actions
-    observeEvent(input$save_norm_table, {
-      req(norm_metrics_df())
-      new_item <- list(
-        type = "table", 
-        title = paste("Normality Test:", input$num_var), 
-        data = norm_metrics_df()
-      )
-      shared_state$report_items <- append(shared_state$report_items, list(new_item))
-      showNotification("Normality table added to Word report!", type = "message")
-    })
-
-    observeEvent(input$save_norm_hist, {
-      req(hist_plot_obj())
-      new_item <- list(
-        type = "plot", 
-        title = paste("Histogram:", input$num_var), 
-        data = hist_plot_obj()
-      )
-      shared_state$report_items <- append(shared_state$report_items, list(new_item))
-      showNotification("Histogram added to Word report!", type = "message")
-    })
-
-    observeEvent(input$save_norm_qq, {
-      req(qq_plot_obj())
-      new_item <- list(
-        type = "plot", 
-        title = paste("Q-Q Plot:", input$num_var), 
-        data = qq_plot_obj()
-      )
-      shared_state$report_items <- append(shared_state$report_items, list(new_item))
-      showNotification("Q-Q Plot added to Word report!", type = "message")
-    })
-
+    output$dl_qq <- downloadHandler(
+      filename = function() { paste0("QQ_Plot_", input$num_var, "_", Sys.Date(), ".png") },
+      content = function(file) { ggsave(file, plot = qq_plot_obj(), width = 8, height = 5, bg = "white") }
+    )
   })
 }

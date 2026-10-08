@@ -3,6 +3,7 @@ library(bslib)
 library(googlesheets4)
 library(googledrive)
 library(dplyr)
+library(nortest)
 library(ggplot2)
 library(DT)
 library(hunspell)
@@ -61,9 +62,9 @@ server <- function(input, output, session) {
   app_state <- reactiveValues(
     schema = data.frame(Variable = character(), Prompt = character(), Type = character(), Options = character(), stringsAsFactors = FALSE),
     sheet_id = NULL,
-   # data = iris,
-    data = data.frame()
-   final_models = list() # Holds the single latest result per module
+    data = iris,
+    #data = data.frame(),
+    final_models = list() # Holds the single latest result per module
   )
   
   # Initialize Servers
