@@ -60,27 +60,29 @@ ui <- page_navbar(
 
 server <- function(input, output, session) {
   
+  # --- RESPONDENT ROUTING LOGIC ---
   observe({
     query <- parseQueryString(session$clientData$url_search)
     
     # If the URL contains ?mode=respondent
     if (!is.null(query$mode) && query$mode == "respondent") {
       
-      # 1. Force the app to switch to the Active Survey tab
-      nav_select("main_tabs", "2. Active Survey")
-      
-      # 2. Inject CSS to completely hide the top navigation bar
+      # 1. Inject CSS to completely hide the top navigation bar immediately
       insertUI(
         selector = "head",
         ui = tags$style(".navbar { display: none !important; }")
       )
+      
+      # 2. Wait for the page to finish drawing, THEN safely switch the tab!
+      session$onFlushed(function() {
+        updateNavbarPage(session, "main_tabs", selected = "2. Active Survey")
+      }, once = TRUE)
     }
   })
   
   app_state <- reactiveValues(
     schema = data.frame(Variable = character(), Prompt = character(), Type = character(), Options = character(), stringsAsFactors = FALSE),
     sheet_id = NULL,
-    # data = iris,
     data = data.frame(),
     final_models = list() # Holds the single latest result per module
   )
