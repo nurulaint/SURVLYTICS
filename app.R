@@ -37,6 +37,7 @@ source("R/analytics/08_summary_report_module.R")
 source("R/helper_module.R")
 
 ui <- page_navbar(
+  id = "main_tabs",
   title = "SURVLYTICS",
   theme = bs_theme(version = 5, bootswatch = "flatly"),
   
@@ -58,6 +59,23 @@ ui <- page_navbar(
 
 
 server <- function(input, output, session) {
+  
+  observe({
+    query <- parseQueryString(session$clientData$url_search)
+    
+    # If the URL contains ?mode=respondent
+    if (!is.null(query$mode) && query$mode == "respondent") {
+      
+      # 1. Force the app to switch to the Active Survey tab
+      nav_select("main_tabs", "2. Active Survey")
+      
+      # 2. Inject CSS to completely hide the top navigation bar
+      insertUI(
+        selector = "head",
+        ui = tags$style(".navbar { display: none !important; }")
+      )
+    }
+  })
   
   app_state <- reactiveValues(
     schema = data.frame(Variable = character(), Prompt = character(), Type = character(), Options = character(), stringsAsFactors = FALSE),

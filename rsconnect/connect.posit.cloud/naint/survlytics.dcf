@@ -1,0 +1,10 @@
+name: survlytics
+title:
+username: naint
+account: naint
+server: connect.posit.cloud
+hostUrl: https://api.connect.posit.cloud/v1
+appId: 01a11ad7-d1ce-19b7-3839-327ae4b2a550
+bundleId:
+url: https://connect.posit.cloud/naint/content/01a11ad7-d1ce-19b7-3839-327ae4b2a550
+version: 1

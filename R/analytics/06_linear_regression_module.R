@@ -37,8 +37,8 @@ linear_regression_server <- function(id, shared_state) {
     })                    
     # Helper function to format tables identically          
     format_lm_df <- function(df, scope) {              
-      colnames(df)[1:4] <- c("Estimate", "Std. Error", "Statistic", "p-value")                     # Safeguard against NA p-values (e.g., singular fits or zero-variance)       df$`p-value`[is.na(df$`p-value`)] <- 1
-      
+      colnames(df)[1:4] <- c("Estimate", "Std. Error", "Statistic", "p-value")                     # Safeguard against NA p-values (e.g., singular fits or zero-variance)       
+      df$`p-value`[is.na(df$`p-value`)] <- 1
       df$`Significance` <- ifelse(df$`p-value` <= 0.001, "***",
                            ifelse(df$`p-value` <= 0.01, "**",
                            ifelse(df$`p-value` <= 0.05, "*", "NS")))
